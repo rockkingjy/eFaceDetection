@@ -16,7 +16,7 @@ void TrainDetector::Detect(){
   timeval start, end;
   float time = 0;
 
-  string path = "1.jpg";
+  string path = "../../imgs/smile.jpeg";
   Mat img = imread(path, CV_LOAD_IMAGE_GRAYSCALE);
   vector<Rect> rects;
   vector<float> scores;

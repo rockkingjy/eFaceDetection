@@ -5,7 +5,7 @@
 using namespace std;
 
 /*
- * \breif Configure of NPD
+ * \breif Configure of NPD, Singleton Pattern
  */
 class Options{
   public:

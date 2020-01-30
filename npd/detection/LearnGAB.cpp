@@ -6,6 +6,7 @@
 #include <map>
 #include <omp.h>
 
+#define debug(a, args...) printf("%s(%s:%d) " a "\n", __func__, __FILE__, __LINE__, ##args)
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -17,7 +18,7 @@ GAB::GAB()
 {
   const Options &opt = Options::GetInstance();
   stages = 0;
-
+  // look up table to store NPD features for speed up.
   ppNpdTable = Mat(256, 256, CV_8UC1);
   for (int i = 0; i < 256; i++)
   {
@@ -33,7 +34,8 @@ GAB::GAB()
       ppNpdTable.at<uchar>(i, j) = (unsigned char)fea;
     }
   }
-
+  // lpoints=[(24*24-1)*[0],(24*24-2)*[1],...,1*[24*24-2]]
+  // rpoints=[1,2,...24*24-1;2,3,...24*24-1;...;24*24-1]
   size_t numPixels = opt.objSize * opt.objSize;
   for (int i = 0; i < numPixels; i++)
   {
@@ -43,7 +45,8 @@ GAB::GAB()
       rpoints.push_back(j);
     }
   }
-
+  debug("l/rpoints size: %ld, %ld, %ld", numPixels, lpoints.size(), rpoints.size());
+  //exit(0);
   points1.resize(29);
   points2.resize(29);
 }
@@ -53,11 +56,14 @@ void GAB::GetPoints(int feaid, int *x1, int *y1, int *x2, int *y2)
   const Options &opt = Options::GetInstance();
   int lpoint = lpoints[feaid];
   int rpoint = rpoints[feaid];
+
+  //debug("feaId, lpoint, rpoint:%d, %d, %d", feaid, lpoint, rpoint);
+  //exit(0);
   //use the model trained by yourself
-  *y1 = lpoint % opt.objSize;
   *x1 = lpoint / opt.objSize;
-  *y2 = rpoint % opt.objSize;
+  *y1 = lpoint % opt.objSize;
   *x2 = rpoint / opt.objSize;
+  *y2 = rpoint % opt.objSize;
   //use the 1226model
   /*
    *y1 = lpoint/opt.objSize;
@@ -76,7 +82,8 @@ void GAB::LoadModel(string path)
   fread(&DetectSize, sizeof(int), 1, file);
   fread(&stages, sizeof(int), 1, file);
   fread(&numBranchNodes, sizeof(int), 1, file);
-  printf("stages num :%d\n", stages);
+  printf("DetectSize: %d, stages: %d, numBranchNodes: %d\n",
+         DetectSize, stages, numBranchNodes);
 
   int *_tree = new int[stages];
   float *_threshold = new float[stages];
@@ -133,6 +140,22 @@ void GAB::LoadModel(string path)
   delete[] _fit;
 
   fclose(file);
+
+  printf("treeIndex:");
+  for (int i = 0; i < stages; i++)
+  {
+    //printf("%d,", treeIndex[i]);
+  }
+  printf("\nthresholds:");
+  for (int i = 0; i < stages; i++)
+  {
+    //  printf("%f,", thresholds[i]);
+  }
+  printf("\nfeaIds: %d\n", feaIds[0]);
+  printf("leftChilds: %d\n", leftChilds[0]);
+  printf("rightChilds: %d\n", leftChilds[0]);
+  printf("cutpoints: %d\n", cutpoints[0]);
+  printf("fits: %f\n", fits[0]);
 }
 
 vector<int> GAB::DetectFace(Mat img, vector<Rect> &rects, vector<float> &scores)
@@ -146,10 +169,12 @@ vector<int> GAB::DetectFace(Mat img, vector<Rect> &rects, vector<float> &scores)
 
   int height = img.rows;
   int width = img.cols;
+  debug("height, width: %d, %d", height, width);
   int sizePatch = min(width, height);
   int thresh = 0;
   const unsigned char *O = (unsigned char *)img.data;
   unsigned char *I = new unsigned char[width * height];
+  // copy O to I
   int k = 0;
   for (int i = 0; i < width; i++)
   {
@@ -159,7 +184,18 @@ vector<int> GAB::DetectFace(Mat img, vector<Rect> &rects, vector<float> &scores)
       k++;
     }
   }
-
+  /*
+  debug("w, h: %d,%d", width, height);
+  for (int i = 0; i < width; i++)
+  {
+    for (int j = 0; j < height; j++)
+    {
+      printf("%d,", *(O + i));
+    }
+    printf("\n");
+  }
+  exit(0);*/
+  // find the max pWinSize smaller than input img
   for (int i = 0; i < 29; i++)
   {
     if (sizePatch >= pWinSize[i])
@@ -179,12 +215,15 @@ vector<int> GAB::DetectFace(Mat img, vector<Rect> &rects, vector<float> &scores)
   maxFace = min(maxFace, min(height, width));
 
   vector<int> picked;
-  if (min(height, width) < minFace)
+  if (min(height, width) < minFace) // if too small, return.
   {
     return picked;
   }
+
+  debug("thresh: %d", thresh);
   for (int k = 0; k < thresh; k++) // process each scale
   {
+    debug("k: %d", k);
     if (pWinSize[k] < minFace)
       continue;
     else if (pWinSize[k] > maxFace)
@@ -212,8 +251,9 @@ vector<int> GAB::DetectFace(Mat img, vector<Rect> &rects, vector<float> &scores)
     int colMax = width - pWinSize[k] + 1;
     int rowMax = height - pWinSize[k] + 1;
 
-// process each subwindow
-#pragma omp parallel for
+    //debug("colMax: %d, rowMax: %d, winStep: %d", colMax, rowMax, winStep);
+    // process each subwindow
+    //#pragma omp parallel for
     for (int c = 0; c < colMax; c += winStep) // slide in column
     {
       const unsigned char *pPixel = I + c * height;
@@ -228,13 +268,19 @@ vector<int> GAB::DetectFace(Mat img, vector<Rect> &rects, vector<float> &scores)
         {
           int node = treeIndex[s];
 
+          //debug("node: %d", node);
           // test the current tree classifier
           while (node > -1) // branch node
           {
             unsigned char p1 = pPixel[offset[points1[k][node]]];
             unsigned char p2 = pPixel[offset[points2[k][node]]];
             unsigned char fea = ppNpdTable.at<uchar>(p1, p2);
-
+            /*
+            debug("offset1, offset2: %d, %d", offset[points1[k][node]], offset[points2[k][node]]);
+            printf("p1, p2, fea: %d, %d, %d\n", p1, p2, fea);
+            debug("cutpoints[2 * node]: %d", cutpoints[2 * node]);
+            debug("cutpoints[2 * node + 1]: %d", cutpoints[2 * node + 1]);
+            exit(0);*/
             if (fea < cutpoints[2 * node] || fea > cutpoints[2 * node + 1])
               node = leftChilds[node];
             else
@@ -253,7 +299,7 @@ vector<int> GAB::DetectFace(Mat img, vector<Rect> &rects, vector<float> &scores)
         if (s == stages) // a face detected
         {
           Rect roi(c, r, pWinSize[k], pWinSize[k]);
-#pragma omp critical // modify the record by a single thread
+          //#pragma omp critical // modify the record by a single thread
           {
             rects.push_back(roi);
             scores.push_back(_score);
@@ -261,6 +307,11 @@ vector<int> GAB::DetectFace(Mat img, vector<Rect> &rects, vector<float> &scores)
         }
       }
     }
+  }
+  debug("number: %ld", rects.size());
+  for(int i = 0; i < rects.size(); i++)
+  {
+    debug("%d, %d, %d, %f", rects[i].x, rects[i].y, rects[i].width, scores[i]);
   }
   vector<int> Srect;
   picked = Nms(rects, scores, Srect, 0.5, img);

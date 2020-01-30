@@ -27,8 +27,8 @@ int main( int argc, char** argv ){
 	string imagePath = "/home/neusoft/amy/eFaceDetection/";
 
 	//Utils::generateNonFacesDataset(imagePath + "backgrounds/", imagePath + "validation", 5000, 24);
-	//string positivePath = imagePath + "lfwcrop/faces/";
-	//string negativePath = imagePath + "backgrounds/";
+	string positivePath = imagePath + "lfwcrop/faces/";
+	string negativePath = imagePath + "backgrounds/";
 	//string validationPath = imagePath + "validation/";
 
 
@@ -37,14 +37,14 @@ int main( int argc, char** argv ){
 	//Mat test = imread(imagePath + "lfwcrop/faces/Ana_Isabel_Sanchez_0001.pgm", CV_LOAD_IMAGE_GRAYSCALE);
 
 
-	//FaceDetector* detector = new FaceDetector(positivePath, negativePath, 12, 3000, 3000);
-	//detector->setValidationSet(validationPath);
-	//detector->train();
+	FaceDetector* detector = new FaceDetector(positivePath, negativePath, 12, 3000, 3000);
+	//etector->setValidationSet(validationPath);
+	detector->train();
 
 	FaceDetector* detector = new FaceDetector("../weights/trainedDataBest.txt", 1);
 	string save_path = "/home/neusoft/amy/eFaceDetection/viola_jones/tmp/";
 	detector->displaySelectedFeatures(test, -1, save_path);
-	//detector->detect(test, true);
+	detector->detect(test, true);
 
 	/*
 	string digitsPath = imagePath + "digits/train-images-idx3-ubyte";

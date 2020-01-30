@@ -4,10 +4,11 @@
 
 #include "HaarFeatures.h"
 
+// calculate and store the feature's blocks.
 void HaarFeatures::getFeature(int size, WeakClassifier *wc)
 {
 	Mat img(Size(size, size), CV_8UC3);
-	extractFeatures(img, size, true, wc);
+	extractFeatures(img, size, true, wc); 
 }
 
 vector<float> HaarFeatures::extractFeatures(Mat img, int size)
@@ -19,8 +20,7 @@ vector<float> HaarFeatures::extractFeatures(Mat img, int size)
  * Extracting haar like feature from an image
  * integralImage: the integral image
  * size: the detection window size
- * r: row offset
- * c: column offset
+ * store: whether to store the feature's blocks into the weak classifier.
  */
 vector<float> HaarFeatures::extractFeatures(Mat integralImage, int size, bool store, WeakClassifier *wc)
 {

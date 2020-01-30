@@ -57,18 +57,19 @@ class GAB{
   public:
     /* \breif indicate how many stages the dector have */
     int stages;
+    int numBranchNodes;
     /* \breif vectors contain the model */
     vector<int> treeIndex;
+    vector<float> thresholds;
     vector<int> feaIds, leftChilds, rightChilds;
     vector<unsigned char> cutpoints;
     vector<float> fits;
-    vector<float> thresholds;
-    int numBranchNodes;
-    /* \breif save the points of feature id */
-    vector< vector<int> > points1,points2;
+    
     /* \breif vector contain point-feature map */
     vector<int> lpoints;
     vector<int> rpoints;
+    /* \breif save the points of feature id */
+    vector< vector<int> > points1,points2;
     /* \breif A feature map used for speed up calculate feature */
     cv::Mat ppNpdTable;
   public:
